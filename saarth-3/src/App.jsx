@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
 import "./index.css";
 
 const initialTasks = JSON.parse(localStorage.getItem("tasks")) || {
@@ -37,15 +38,18 @@ const TaskManager = () => {
     });
   };
 
-  const handleDragStart = (e, category, taskId) => {
-    e.dataTransfer.setData("category", category);
-    e.dataTransfer.setData("taskId", taskId);
-  };
-
-  const handleDrop = (e, newCategory) => {
-    const category = e.dataTransfer.getData("category");
-    const taskId = e.dataTransfer.getData("taskId");
-    handleMoveTask(category, taskId, newCategory);
+  const handleDragEnd = (result) => {
+    if (!result.destination) return;
+    const { source, destination } = result;
+    const sourceTasks = [...tasks[source.droppableId]];
+    const [movedTask] = sourceTasks.splice(source.index, 1);
+    const destinationTasks = [...tasks[destination.droppableId]];
+    destinationTasks.splice(destination.index, 0, movedTask);
+    setTasks({
+      ...tasks,
+      [source.droppableId]: sourceTasks,
+      [destination.droppableId]: destinationTasks,
+    });
   };
 
   return (
@@ -65,37 +69,52 @@ const TaskManager = () => {
         ></textarea>
         <button onClick={handleAddTask}>Add Task</button>
       </div>
-      <div className="task-columns">
-        {Object.keys(tasks).map((category) => (
-          <div
-            className="task-column"
-            key={category}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => handleDrop(e, category)}
-          >
-            <h3>{category.toUpperCase()}</h3>
-            {tasks[category].map((task) => (
-              <div
-                key={task.id}
-                className="task-card"
-                draggable
-                onDragStart={(e) => handleDragStart(e, category, task.id)}
-              >
-                <h4>{task.title}</h4>
-                <p>{task.description}</p>
-                <div className="task-actions">
-                  {category !== "done" && (
-                    <button onClick={() => handleMoveTask(category, task.id, category === "todo" ? "inProgress" : "done")}>
-                      Move to {category === "todo" ? "In Progress" : "Done"}
-                    </button>
-                  )}
-                  <button onClick={() => handleDeleteTask(category, task.id)}>Delete</button>
+      <DragDropContext onDragEnd={handleDragEnd}>
+        <div className="task-columns">
+          {Object.keys(tasks).map((category) => (
+            <Droppable droppableId={category} key={category}>
+              {(provided) => (
+                <div className="task-column" ref={provided.innerRef} {...provided.droppableProps}>
+                  <h3>{category.toUpperCase()}</h3>
+                  {tasks[category].map((task, index) => (
+                    <Draggable key={task.id} draggableId={task.id} index={index}>
+                      {(provided) => (
+                        <div
+                          className="task-card"
+                          ref={provided.innerRef}
+                          {...provided.draggableProps}
+                          {...provided.dragHandleProps}
+                        >
+                          <h4>{task.title}</h4>
+                          <p>{task.description}</p>
+                          <div className="task-actions">
+                            {category !== "done" && (
+                              <>
+                                {category === "todo" && (
+                                  <button onClick={() => handleMoveTask(category, task.id, "inProgress")}>
+                                    Move to In Progress
+                                  </button>
+                                )}
+                                {category === "inProgress" && (
+                                  <button onClick={() => handleMoveTask(category, task.id, "done")}>
+                                    Move to Done
+                                  </button>
+                                )}
+                              </>
+                            )}
+                            <button onClick={() => handleDeleteTask(category, task.id)}>Delete</button>
+                          </div>
+                        </div>
+                      )}
+                    </Draggable>
+                  ))}
+                  {provided.placeholder}
                 </div>
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
+              )}
+            </Droppable>
+          ))}
+        </div>
+      </DragDropContext>
     </div>
   );
 };
